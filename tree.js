@@ -18,8 +18,8 @@ function QuadtreeNode(xmin, xmax, ymin, ymax){
     this.isLeaf = true;
     this.nodes = [];
     this.points = [];
-    this.intersect = function(p){
-	return (p.x >= this.xmin && p.x < this.xmax) && (p.y >= this.ymin && p.y < this.ymax);
+    this.intersect = function(x, y){
+	return (x >= this.xmin && x < this.xmax) && (y >= this.ymin && y < this.ymax);
     };
 }
 function QuadTree(config){
@@ -41,24 +41,32 @@ function QuadTree(config){
 	var nodes = [];
 	var dx = node.xmax-node.xmin;
 	var dy = node.ymax-node.ymin;
-	nodes[0] = new QuadtreeNode(node.xmin,node.xmax-dx/2,node.ymin,node.ymax-dy/2);
-	nodes[1] = new QuadtreeNode(node.xmax-dx/2,node.xmax,node.ymin,node.ymax-dy/2);
-	nodes[2] = new QuadtreeNode(node.xmin,node.xmax-dx/2,node.ymax-dy/2,node.ymax);
-	nodes[3] = new QuadtreeNode(node.xmax-dx/2,node.xmax,node.ymax-dy/2,node.ymax);
+	nodes[0] = new QuadtreeNode(node.xmin, node.xmax-dx/2, node.ymin, 
+            node.ymax-dy/2);
+	nodes[1] = new QuadtreeNode(node.xmax-dx/2, node.xmax, node.ymin, 
+            node.ymax-dy/2);
+	nodes[2] = new QuadtreeNode(node.xmin, node.xmax-dx/2, node.ymax-dy/2, 
+            node.ymax);
+	nodes[3] = new QuadtreeNode(node.xmax-dx/2, node.xmax, node.ymax-dy/2,
+            node.ymax);
 	return nodes;
     }
-    this.loadPoint = function(p,node){	
+    this.update = function(x, y, ref){
+
+    }
+    this.insert = function(x, y, ref, node){	
 	/* Load a point into the tree. If node is given, start traversing at
 	 * that position in the tree. 
 	 */
-        node = traverse(p, this);
+        node = traverse(x, y, this);
 	if(node.points.length+1 > MAX_PTS){
 	    if(node.depth+1 > MAX_DEPTH){
-		node.points.push(p);	
+		node.points.push({x:x, y:y, ref:ref});
+                ref.tree_ref = node;
 	    }
 	    else{
 		var points_ = node.points;
-		points_.push(p);
+		points_.push({x:x, y:y, ref:ref});
 		var nodes_ = this.subdivide(node);
 		for(var i=0;i<4;i++)
 		    nodes_[i].depth = node.depth+1;
@@ -66,41 +74,22 @@ function QuadTree(config){
 		node.points = [];
 		node.isLeaf = false;
 		for(var i=0;i<points_.length;i++)
-		    this.loadPoint(points_[i],node);
+		    this.insert(points_[i].x, points_[i].y, points_[i].ref, node);
 	    }
 	}
-	else
-	    node.points.push(p);
-    }
-    this.getPoints = function(p1, p2){
-	/* Given a bounding box (p1,p2), return all points in the tree that 
-	 * inside it
-	 */
-        var cPoints = [];
-        cPoints = cPoints.concat( traverse({x:p1.x,y:p1.y}, this).points );
-        cPoints = cPoints.concat( traverse({x:p1.x,y:p2.y}, this).points );
-        cPoints = cPoints.concat( traverse({x:p2.x,y:p2.y}, this).points );
-        cPoints = cPoints.concat( traverse({x:p2.x,y:p1.y}, this).points );
-        var xmax = Math.max(p1.x, p2.x);
-        var ymax = Math.max(p1.y, p2.y);
-        var xmin = Math.min(p1.x, p2.x);
-        var ymin = Math.min(p1.y, p2.y);
-        var iPoints = [];
-        for(var i=0;i<cPoints.length;i++)
-        {
-            if(cPoints[i].x >= xmin && cPoints[i].x < xmax && cPoints[i].y >= ymin && cPoints[i].y < ymax)
-                iPoints.push(cPoints[i]);
+	else{
+	    node.points.push({x:x, y:y, ref:ref});
+            ref.tree_ref = node;
         }
-        return iPoints;
     }
     this.print = function(){
         pprint(this);   
     };
-    function traverse(p, node){
+    function traverse(x, y, node){
 	/* Traverse the tree looking for the correct node for a point */
 	do {
 	    for(var i=0;i<4;i++)
-		if(node.nodes[i].intersect(p)){
+		if(node.nodes[i].intersect(x, y)){
 		    node = node.nodes[i];
 		    break;
 		}
@@ -126,8 +115,10 @@ function pprint(node){
 	var out = '';
 	out += '['+node.id+']\n';
 	if(node.isLeaf){
-	    for(var i=0;i<node.points.length;i++)
-		out += pre+JSON.stringify(node.points[i])+'\n';
+	    for(var i=0;i<node.points.length;i++){
+                out += pre+'[+'+node.points[i].ref.id+']';
+                out += ' ('+node.points[i].x+','+node.points[i].y+')\n';
+            }
 	}
 	else{
 	    out += pre+_pprint(node.nodes[0],' '+pre)+'\n';
